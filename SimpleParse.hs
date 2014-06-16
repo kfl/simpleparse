@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 {-
   Example code from Advanced Programming lecture.
 
@@ -8,12 +9,15 @@
 -}
 module SimpleParse where
 
-import Control.Monad(MonadPlus(..))
+import Control.Monad(MonadPlus(..), liftM)
 import Data.Char (isSpace)
 
 newtype Parser a = Parser (String -> [(a, String)])
+
+parse :: Parser t -> String -> [(t, String)]
 parse (Parser p) = p
 
+parse' :: Parser t -> String -> [t]
 parse' p s = [ result | (result,rest) <- parse p s, null rest ]
 
 
@@ -31,8 +35,8 @@ eof = Parser  eof'
   where eof' "" = [((),[])]
         eof' _  = []
 
-parseEof p = parse $ p >>> eof >>= return . fst
-
+parseEof :: Parser t -> String -> [(t, String)]
+parseEof p = parse $ liftM fst $ p >>> eof
 
 (>>>) :: Parser a -> Parser b -> Parser (a,b)
 p >>> q = Parser $ \ s -> [ ((a,b), cs) | (a, cs1) <- parse p s
@@ -78,17 +82,13 @@ instance MonadPlus Parser where
   p `mplus` q = p <|> q
   mzero       = reject
 
-
-many :: Parser a -> Parser [a]
-many p = do v <- p
-            vs <- many p
-            return (v:vs)
-         <|> return []
-
 many1 :: Parser a -> Parser [a]
 many1 p = do v <- p
              vs <- many p
              return (v:vs)
+
+many :: Parser a -> Parser [a]
+many p = many1 p <|> return []
 
 sepBy           :: Parser a -> Parser b -> Parser [a]
 p `sepBy` sep    = (p `sepBy1` sep) <|> return []
@@ -128,5 +128,8 @@ spaces           = many space
 token           :: Parser a -> Parser a
 token p          = spaces >> p
 
+symbol           :: String -> Parser String
 symbol           = token . string
+
+schar            :: Char -> Parser Char
 schar            = token . char
