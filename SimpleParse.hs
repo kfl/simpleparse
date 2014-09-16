@@ -10,6 +10,7 @@
 module SimpleParse where
 
 import Control.Monad(MonadPlus(..), liftM)
+import Control.Applicative
 import Data.Char (isSpace)
 
 newtype Parser a = Parser (String -> [(a, String)])
@@ -35,12 +36,26 @@ eof = Parser  eof'
   where eof' "" = [((),[])]
         eof' _  = []
 
+notFollowedBy :: Parser a -> Parser ()
+notFollowedBy p = Parser $ \s -> case parse p s of
+  []  -> [((), s)]
+  _:_ -> []
+
 parseEof :: Parser t -> String -> [(t, String)]
 parseEof p = parse $ liftM fst $ p >>> eof
 
 (>>>) :: Parser a -> Parser b -> Parser (a,b)
 p >>> q = Parser $ \ s -> [ ((a,b), cs) | (a, cs1) <- parse p s
                                         , (b, cs)  <- parse q cs1]
+
+instance Functor Parser where
+  fmap = liftM
+
+instance Applicative Parser where
+  fm <*> xm = do f <- fm
+                 c <- xm
+                 return $ f c
+  pure = return
 
 instance Monad Parser where
    p >>= q  = Parser$ \cs -> [(v2, cs2) |
@@ -49,6 +64,10 @@ instance Monad Parser where
 
    return v = Parser$ \cs -> [(v, cs)]
 
+instance Alternative Parser where
+  p <|> q = Parser$ \cs -> parse p cs ++ parse q cs
+  many p = many1 p <|> return []
+  empty = reject
 
 (<++) :: Parser a -> Parser a -> Parser a
 p <++ q = Parser (\cs -> case parse p cs of
@@ -75,9 +94,6 @@ string (c:cs) = do char c
                    string cs
                    return (c:cs)
 
-(<|>) :: Parser a -> Parser a -> Parser a
-p <|> q = Parser$ \cs -> parse p cs ++ parse q cs
-
 instance MonadPlus Parser where
   p `mplus` q = p <|> q
   mzero       = reject
@@ -87,8 +103,15 @@ many1 p = do v <- p
              vs <- many p
              return (v:vs)
 
-many :: Parser a -> Parser [a]
-many p = many1 p <|> return []
+munch :: Parser a -> Parser [a]
+munch p = do x <- many p
+             notFollowedBy p
+             return x
+
+munch1 :: Parser a -> Parser [a]
+munch1 p = do x <- many1 p
+              notFollowedBy p
+              return x
 
 sepBy           :: Parser a -> Parser b -> Parser [a]
 p `sepBy` sep    = (p `sepBy1` sep) <|> return []
@@ -107,9 +130,6 @@ p `chainl1` op   = do a <- p
                                   b <- p
                                   rest (f a b)
                                <|> return a
-
-
-
 
 option :: Parser a -> Parser (Maybe a)
 option p = do v <- p
