@@ -103,14 +103,14 @@ many1 p = do v <- p
              vs <- many p
              return (v:vs)
 
-munch :: Parser a -> Parser [a]
-munch p = do x <- many p
-             notFollowedBy p
+munch :: (Char -> Bool) -> Parser String
+munch p = do x <- many $ satisfy p
+             notFollowedBy $ satisfy p
              return x
 
-munch1 :: Parser a -> Parser [a]
-munch1 p = do x <- many1 p
-              notFollowedBy p
+munch1 :: (Char -> Bool) -> Parser String
+munch1 p = do x <- many1 $ satisfy p
+              notFollowedBy $ satisfy p
               return x
 
 sepBy           :: Parser a -> Parser b -> Parser [a]
