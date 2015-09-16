@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 {-
   Code from Advanced Programming course at DIKU.
 
@@ -11,7 +11,7 @@
 module SimpleParse where
 
 import Control.Monad ( MonadPlus(..), liftM )
-import Control.Applicative ( Alternative((<|>), empty, many) )
+import Control.Applicative ( Applicative(..), Alternative((<|>), empty, many) )
 import Data.Char ( isSpace )
 
 newtype Parser a = Parser (String -> [(a, String)])
