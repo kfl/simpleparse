@@ -1,17 +1,18 @@
-{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-
-  Example code from Advanced Programming lecture.
+  Code from Advanced Programming course at DIKU.
 
-  Small monadic parser combinator library.
+  Small monadic parser combinator library. Intended to be (mostly) API
+  compatible with ReadP.
 
-  Date: Sep 20, 2012
+  Last updated: Sep 2015
   Author: Ken Friis Larsen <kflarsen@diku.dk>
 -}
 module SimpleParse where
 
-import Control.Monad(MonadPlus(..), liftM)
-import Control.Applicative
-import Data.Char (isSpace)
+import Control.Monad ( MonadPlus(..), liftM )
+import Control.Applicative ( Alternative((<|>), empty, many) )
+import Data.Char ( isSpace )
 
 newtype Parser a = Parser (String -> [(a, String)])
 
@@ -22,14 +23,23 @@ parse' :: Parser t -> String -> [t]
 parse' p s = [ result | (result,rest) <- parse p s, null rest ]
 
 
+get :: Parser Char     -- String -> [(Char,String)]
+get = Parser get'
+  where get' "" = [ ]
+        get' (x : xs) = [(x,xs)]
 
-item :: Parser Char     -- String -> [(Char,String)]
-item = Parser item'
-  where item' "" = [ ]
-        item' (x : xs) = [(x,xs)]
+item :: Parser Char
+item = get
+
+look :: Parser String
+look = Parser look'
+  where look' s = [(s, s)]
 
 reject :: Parser a
 reject = Parser $ \ _ -> []
+
+pfail :: Parser a
+pfail = reject
 
 eof :: Parser ()
 eof = Parser  eof'
@@ -71,19 +81,19 @@ instance Alternative Parser where
 
 (<++) :: Parser a -> Parser a -> Parser a
 p <++ q = Parser (\cs -> case parse p cs of
-                     []	 -> parse q cs
+                     []  -> parse q cs
                      res -> res)
 
 
 
 char :: Char -> Parser Char
-char e = do c <- item
+char e = do c <- get
             if e == c
               then return c
               else reject
 
 satisfy :: (Char -> Bool) -> Parser Char
-satisfy p = do c <- item
+satisfy p = do c <- get
                if p c
                  then return c
                  else reject
@@ -104,14 +114,18 @@ many1 p = do v <- p
              return (v:vs)
 
 munch :: (Char -> Bool) -> Parser String
-munch p = do x <- many $ satisfy p
-             notFollowedBy $ satisfy p
-             return x
+munch p =
+  do s <- look
+     scan s
+ where
+  scan (c:cs) | p c = do _ <- get; s <- scan cs; return (c:s)
+  scan _            = do return ""
 
 munch1 :: (Char -> Bool) -> Parser String
-munch1 p = do x <- many1 $ satisfy p
-              notFollowedBy $ satisfy p
-              return x
+munch1 p =
+  do c <- get
+     if p c then do s <- munch p; return (c:s)
+            else pfail
 
 sepBy           :: Parser a -> Parser b -> Parser [a]
 p `sepBy` sep    = (p `sepBy1` sep) <|> return []
